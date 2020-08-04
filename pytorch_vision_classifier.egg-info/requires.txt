@@ -1,5 +1,5 @@
 backcall==0.2.0
-classification-analysis==0.0.1
+classification-analysis==0.0.2
 colorama==0.4.3
 cycler==0.10.0
 decorator==4.4.2
@@ -30,3 +30,4 @@ threadpoolctl==2.1.0
 tqdm==4.46.1
 traitlets==4.3.3
 wcwidth==0.2.5
+mlflow==1.10.0

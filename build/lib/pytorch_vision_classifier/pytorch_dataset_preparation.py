@@ -12,7 +12,7 @@ from torchvision.datasets import ImageFolder
 from torchvision import transforms
 from collections import Counter
 from sklearn.model_selection import train_test_split
-from utilities import ElapsedTime
+from .utilities import ElapsedTime
 
 class PytorchDatasetPreparation:
     

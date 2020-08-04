@@ -7,18 +7,21 @@ from tqdm import tqdm_notebook as tqdm
 from IPython.display import clear_output
 import tarfile
 
-from evaluation_metrics import ClassifierReport
-from pytorch_device_manager import  DeviceManager
-from pytorch_data_transformation import NCenterCrop
+from .evaluation_metrics import ClassifierReport
+from .pytorch_device_manager import  DeviceManager
+from .pytorch_data_transformation import NCenterCrop
 
-from utilities import ElapsedTime
-from lr_finder import LRFinder
+from .utilities import ElapsedTime
+from .lr_finder import LRFinder
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 from copy import deepcopy
+import mlflow
+
+
 from classification_analysis.classification_analysis import ClassificationAnalysis
 
 class ModelInitializer:
@@ -258,6 +261,9 @@ class ModelTraining:
         self.save_model_rate = save_model_rate   # [epoch]
         self.save_last_model = save_last_model
         
+        # For model tracking
+        self.last_run_id = None
+        
         # For model steps timing
         self.steps_timing = dict()
         
@@ -379,7 +385,7 @@ class ModelTraining:
                 
             self.update_phase_data()
     
-    def one_epoch(self, dataset, epoch, best):
+    def one_epoch(self, dataset, epoch, best, track):
         
         self.initialize_epoch_data()
         self.scheduler_step(best)
@@ -396,7 +402,7 @@ class ModelTraining:
         print('Current learning rate: {} '.format(self.optimizer.param_groups[0]['lr']))
         self.evaluation_metrics_calculation(dataset)
         self.evaluation_metrics_visualization()
-        self.model_save(best)
+        self.model_save(best, track)
 
     def evaluation_metrics_calculation(self, dataset):
         # Calculate the loss
@@ -445,7 +451,7 @@ class ModelTraining:
         ClassificationAnalysis.line_plot(self.metrics['train_spec'],      self.metrics['val_spec'],      'Specificity')
       
     
-    def model_save(self, best):
+    def model_save(self, best, track):
         def save_main_parameters(self):
             to_be_saved = dict()
             to_be_saved['epoch_data'] = self.epoch_data
@@ -460,7 +466,8 @@ class ModelTraining:
             to_be_saved['current_epoch'] = self.current_epoch
             to_be_saved['num_epochs'] = self.num_epochs
             to_be_saved['input_type'] = self.input_type
-            
+            to_be_saved['last_run_id'] = self.last_run_id
+
             params = self.optimizer.param_groups
             lr = [params[i]['lr'] for i in reversed(range(len(params)))]
             to_be_saved['optimizer_lr'] = lr
@@ -491,6 +498,21 @@ class ModelTraining:
         file_name = self.model_name + '.pkl'
         should_be_saved = False
         if model_improved:
+            # Tracking Experiments 
+            if track:
+                if self.last_run_id:
+                    mlflow.delete_run(self.last_run_id)
+                    
+                with mlflow.start_run(run_name=self.model_name) as run:
+                    self.last_run_id = mlflow.active_run().info.run_id
+                    
+                    mlflow.log_param('epoch', self.current_epoch)
+                    mlflow.log_param('loss_function', self.loss_function)
+                    mlflow.log_param('scheduler', self.scheduler)
+                        
+                    for key in self.metrics:
+                        mlflow.log_metric(key, self.metrics[key][-1])
+            
             should_be_saved = True
             to_save = {
                            'last_model': self.model if self.save_last_model else None,
@@ -520,7 +542,7 @@ class ModelTraining:
             with open(file_name, 'wb') as f:
                 pk.dump(to_save, f)
         
-    def loop(self, dataset, best = 'val_acc', reset_epoch_cnt=True):
+    def loop(self, dataset, best='val_acc', reset_epoch_cnt=True, track=True):
         
         if reset_epoch_cnt:
             # If we want continue training
@@ -528,9 +550,8 @@ class ModelTraining:
         
         for epoch in range(self.num_epochs):
             with ElapsedTime('One epoch').cpu(with_gpu=False):
-                self.one_epoch(dataset, epoch, best)
-                
-    
+                self.one_epoch(dataset, epoch, best, track)
+                    
     def features_extraction_details(self, n_crops, source_layers, phase, iteration):
         clear_output()
         print('Number of crops is {}'.format(n_crops))
@@ -831,6 +852,7 @@ class ModelTraining:
         model_training.metrics = param_dict['metrics']
         model_training.best_metrics = param_dict['best_metrics']
         model_training.current_epoch = param_dict['current_epoch']
+        model_training.last_run_id = param_dict['last_run_id']
         
         return model_training
       
@@ -898,10 +920,10 @@ class ModelTraining:
         
         return layers
             
-    def display_misclassification(self, model_name, dataset):
+    def display_misclassification(self, model_name, dataset, to_display=10):
         with open(model_name, 'rb') as f:
             model_training = pk.load(f)
             
-        ClassificationAnalysis.misclassification(model_training, dataset)
+        ClassificationAnalysis.misclassification(model_training, dataset, to_display)
 
 
