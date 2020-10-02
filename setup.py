@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="pytorch_vision_classifier",
-    version="0.0.7",
+    version="0.0.8",
     author="sammer sallam",
     author_email="samersallam92@gmail.com",
     description="This library is to help you train and evaluate PyTorch classification model easily and quickly",

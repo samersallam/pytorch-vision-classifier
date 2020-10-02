@@ -12,13 +12,12 @@ from torchvision.datasets import ImageFolder
 from torchvision import transforms
 from collections import Counter
 from sklearn.model_selection import train_test_split
+from copy import deepcopy
 from .utilities import ElapsedTime
 
 class PytorchDatasetPreparation:
     
-    def __init__(self, dataset_dir = '', splitting_parameters = {},
-                       loading_parameters = {}, data_transforms = {}, 
-                       show_images_dims_summary = False, use_stratify = True):
+    def __init__(self, dataset_dir = '', splitting_parameters = {}, loading_parameters = {}, data_transforms = {}, show_images_dims_summary = False, use_stratify = True, aws=False):
         """ Initialization """
         
         # Dataset directory
@@ -42,6 +41,14 @@ class PytorchDatasetPreparation:
             img_fld.imgs = img_fld.samples
             img_fld.root = ''
             self.dataset_folder = img_fld
+
+        if aws:
+            self.dataset_folder.classes = self.dataset_folder.classes[1:]
+            del self.dataset_folder.class_to_idx['.ipynb_checkpoints']
+
+            self.dataset_folder.class_to_idx = {name: index - 1 for name, index in self.dataset_folder.class_to_idx.items()}
+            self.dataset_folder.samples = [(sample, label - 1) for sample, label in self.dataset_folder.samples]
+            self.dataset_folder.targets = [label - 1  for label in self.dataset_folder.targets]
         
         self.splitting_parameters = splitting_parameters
         self.loading_parameters = loading_parameters
@@ -139,8 +146,7 @@ class PytorchDatasetPreparation:
             plt.title('Image class : ' + str(sample[1]))
             plt.show()
     
-    def show_images_after_transform(self, sample_size = 4, rand_sample = None, 
-                                    load_from = 'train'):
+    def show_images_after_transform(self, sample_size = 4, rand_sample = None, load_from = 'train'):
         """ This function is to show a set of images after transformations """
         data_set = None
         
@@ -198,6 +204,54 @@ class PytorchDatasetPreparation:
             
             print('')
     
+    def cross_validation_split(self, n_fold):
+        dataset_length = len(self.training_dataset.samples + self.validation_dataset.samples)
+        fold_length = int(dataset_length / n_fold)
+
+        cv_sets = list()
+
+        samples = self.training_dataset.samples + self.validation_dataset.samples
+        targets = self.training_dataset.targets
+        imgs = self.training_dataset.imgs + self.validation_dataset.imgs
+        ## Divide samples, targets, and images based on number of folds
+        for i in range(n_fold - 1):
+            cv_sets.append({
+                'samples': samples[i * fold_length: i * fold_length + fold_length],
+                'targets': targets[i * fold_length: i * fold_length + fold_length],
+                'imgs': imgs[i * fold_length: i * fold_length + fold_length]
+            })
+
+        cv_sets.append({
+          'samples': samples[(n_fold - 1) * fold_length:],
+          'targets': targets[(n_fold - 1) * fold_length:],
+          'imgs': imgs[(n_fold - 1) * fold_length:]
+        })
+
+        ## Setup training and valiation sets for every fold
+        cv_datasets = list()
+        for i in range(len(cv_sets)):
+            training_set = cv_sets[0: i] + cv_sets[i+1:]
+            validation_set = cv_sets[i]
+
+            temp_dataset = deepcopy(self)
+            temp_dataset.training_dataset.samples = [j for s in training_set for j in s['samples']]
+            temp_dataset.training_dataset.targets = [j for t in training_set for j in t['targets']]
+            temp_dataset.training_dataset.imgs = [j for im in training_set for j in im['imgs']]
+
+            temp_dataset.validation_dataset.samples = validation_set['samples']
+            temp_dataset.validation_dataset.targets = validation_set['targets']
+            temp_dataset.validation_dataset.imgs = validation_set['imgs']
+
+            # Call details functions
+            temp_dataset.classes_details()
+            temp_dataset.samples_details = temp_dataset.dataset_folder.samples_detalis()
+
+            temp_dataset.training_dataset_details = temp_dataset.training_dataset.samples_detalis()
+            temp_dataset.validation_dataset_details = temp_dataset.validation_dataset.samples_detalis()
+
+            cv_datasets.append(temp_dataset)
+        return cv_datasets
+
     def __repr__(self):
         obj_str = '* Root directory : \n' + str(self.root_dir) + '\n\n'
         

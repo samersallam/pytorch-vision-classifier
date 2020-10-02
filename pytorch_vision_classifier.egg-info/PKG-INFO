@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pytorch-vision-classifier
-Version: 0.0.7
+Version: 0.0.8
 Summary: This library is to help you train and evaluate PyTorch classification model easily and quickly
 Home-page: https://github.com/Samer92/pytorch_vision_classifier
 Author: sammer sallam
