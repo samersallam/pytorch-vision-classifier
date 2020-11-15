@@ -139,7 +139,6 @@ class ClassifierReport:
         self.classes_f1_score = f1_score(
             self.y_true, self.y_pred, average = None).round(self.digits_count_fp)
     
-    
     def specificity(self):
         """ Specificity is also known as True Negative Rate """
         self.overall_specificity = specificity_score(

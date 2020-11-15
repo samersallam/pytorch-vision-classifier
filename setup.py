@@ -20,8 +20,7 @@ setuptools.setup(
                       'parso==0.7.0', 'pickleshare==0.7.5', 'Pillow==7.1.2', 'prompt-toolkit==3.0.5', 
                       'Pygments==2.6.1', 'pyparsing==2.4.7', 'python-dateutil==2.8.1', 'pytz==2020.1', 
                       'scikit-learn==0.23.1', 'scipy==1.5.0', 'seaborn==0.10.1', 'six==1.15.0', 
-                      'threadpoolctl==2.1.0', 'tqdm==4.46.1', 'traitlets==4.3.3', 'wcwidth==0.2.5', 
-                      'mlflow==1.10.0'],
+                      'threadpoolctl==2.1.0', 'tqdm==4.46.1', 'traitlets==4.3.3', 'wcwidth==0.2.5'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

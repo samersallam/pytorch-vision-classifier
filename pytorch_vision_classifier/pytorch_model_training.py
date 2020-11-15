@@ -19,7 +19,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 from copy import deepcopy
-import mlflow
 
 
 from classification_analysis.classification_analysis import ClassificationAnalysis
@@ -261,9 +260,6 @@ class ModelTraining:
         self.save_model_rate = save_model_rate   # [epoch]
         self.save_last_model = save_last_model
         
-        # For model tracking
-        self.last_run_id = None
-        
         # For model steps timing
         self.steps_timing = dict()
         
@@ -385,7 +381,7 @@ class ModelTraining:
                 
             self.update_phase_data()
     
-    def one_epoch(self, dataset, epoch, best, track):
+    def one_epoch(self, dataset, epoch, best):
         
         self.initialize_epoch_data()
         self.scheduler_step(best)
@@ -402,7 +398,7 @@ class ModelTraining:
         print('Current learning rate: {} '.format(self.optimizer.param_groups[0]['lr']))
         self.evaluation_metrics_calculation(dataset)
         self.evaluation_metrics_visualization()
-        self.model_save(best, track)
+        self.model_save(best)
 
     def evaluation_metrics_calculation(self, dataset):
         # Calculate the loss
@@ -451,7 +447,7 @@ class ModelTraining:
         ClassificationAnalysis.line_plot(self.metrics['train_spec'],      self.metrics['val_spec'],      'Specificity')
       
     
-    def model_save(self, best, track):
+    def model_save(self, best):
         def save_main_parameters(self):
             to_be_saved = dict()
             to_be_saved['epoch_data'] = self.epoch_data
@@ -498,21 +494,6 @@ class ModelTraining:
         file_name = self.model_name + '.pkl'
         should_be_saved = False
         if model_improved:
-            # Tracking Experiments 
-            if track:
-                if self.last_run_id:
-                    mlflow.delete_run(self.last_run_id)
-                    
-                with mlflow.start_run(run_name=self.model_name) as run:
-                    self.last_run_id = mlflow.active_run().info.run_id
-                    
-                    mlflow.log_param('epoch', self.current_epoch)
-                    mlflow.log_param('loss_function', self.loss_function)
-                    mlflow.log_param('scheduler', self.scheduler)
-                        
-                    for key in self.metrics:
-                        mlflow.log_metric(key, self.metrics[key][-1])
-            
             should_be_saved = True
             to_save = {
                            'last_model': self.model if self.save_last_model else None,
@@ -542,7 +523,7 @@ class ModelTraining:
             with open(file_name, 'wb') as f:
                 pk.dump(to_save, f)
         
-    def loop(self, dataset, best='val_acc', reset_epoch_cnt=True, track=True):
+    def loop(self, dataset, best='val_acc', reset_epoch_cnt=True):
         
         if reset_epoch_cnt:
             # If we want continue training
@@ -550,7 +531,7 @@ class ModelTraining:
         
         for epoch in range(self.num_epochs):
             with ElapsedTime('One epoch').cpu(with_gpu=False):
-                self.one_epoch(dataset, epoch, best, track)
+                self.one_epoch(dataset, epoch, best)
                     
     def features_extraction_details(self, n_crops, source_layers, phase, iteration):
         clear_output()
