@@ -18,6 +18,7 @@ The main target of this template is to help you during building your classificat
 	d. Provides a dashboard to monitor your model during the training process
 	e. Track the metric that you choose to find the best model for your problem
 	f. Provides a compressed version of your model to be used for deployment purpose
+	g. Extract features from last layer, classification layer, or softmax layer
 
 
 In order to install, you need to download [pytorch](https://pytorch.org/get-started/locally/).

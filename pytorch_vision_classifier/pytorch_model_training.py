@@ -462,7 +462,6 @@ class ModelTraining:
             to_be_saved['current_epoch'] = self.current_epoch
             to_be_saved['num_epochs'] = self.num_epochs
             to_be_saved['input_type'] = self.input_type
-            to_be_saved['last_run_id'] = self.last_run_id
 
             params = self.optimizer.param_groups
             lr = [params[i]['lr'] for i in reversed(range(len(params)))]
@@ -611,7 +610,7 @@ class ModelTraining:
             self.set_model_state(False)
             
             # Get the dataset
-            ds = dataset.get_data_loader(training_phase).dataset
+            ds = dataset.get_data_loader(training_phase)
             
             iteration = 0
             # Iterate over data
@@ -623,11 +622,11 @@ class ModelTraining:
                 
                 iteration+= 1
                 
-                self.inputs = self.inputs.to(self.device)
+                self.data_transfer()
                                 
                 with torch.no_grad():
                     
-                    # Step 1: feed model with inputs and get last layer outputs 
+                    # Step 1: feed model with inputs and get last layer outputs
                     last_layer_outputs = model_steps['last_layer'](self.inputs)
                     last_layer_outputs_mean = last_layer_outputs.mean(dim = 0)
                     
@@ -652,7 +651,7 @@ class ModelTraining:
                     
                     # Add labels
                     for k in datasets:
-                        datasets[k][phase]['labels'].append(np.array(self.labels))
+                        datasets[k][phase]['labels'].append(self.labels.cpu().data.numpy())
                 
                 
         # Stack features and labels
@@ -833,7 +832,6 @@ class ModelTraining:
         model_training.metrics = param_dict['metrics']
         model_training.best_metrics = param_dict['best_metrics']
         model_training.current_epoch = param_dict['current_epoch']
-        model_training.last_run_id = param_dict['last_run_id']
         
         return model_training
       
