@@ -7,7 +7,6 @@ from tqdm import tqdm_notebook as tqdm
 from IPython.display import clear_output
 import tarfile
 
-from .evaluation_metrics import ClassifierReport
 from .pytorch_device_manager import  DeviceManager
 from .pytorch_data_transformation import NCenterCrop
 
@@ -19,10 +18,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 from copy import deepcopy
-import mlflow
 
-
-from classification_analysis.classification_analysis import ClassificationAnalysis
+from classification_analysis.classification_analysis import MetricsClaculation, ClassificationAnalysis, MetricsVisualization
 
 class ModelInitializer:
     def __init__(self, model_name, 
@@ -261,11 +258,11 @@ class ModelTraining:
         self.save_model_rate = save_model_rate   # [epoch]
         self.save_last_model = save_last_model
         
-        # For model tracking
-        self.last_run_id = None
-        
         # For model steps timing
         self.steps_timing = dict()
+
+        # For evaluation metrics
+        self.classification_analysis = ClassificationAnalysis()
         
         # For model evaluation
         self.all_epochs_data = list()
@@ -385,7 +382,7 @@ class ModelTraining:
                 
             self.update_phase_data()
     
-    def one_epoch(self, dataset, epoch, best, track):
+    def one_epoch(self, dataset, epoch, best):
         
         self.initialize_epoch_data()
         self.scheduler_step(best)
@@ -401,8 +398,8 @@ class ModelTraining:
         print('Epoch {}/{}'.format(epoch+1, self.num_epochs))
         print('Current learning rate: {} '.format(self.optimizer.param_groups[0]['lr']))
         self.evaluation_metrics_calculation(dataset)
-        self.evaluation_metrics_visualization()
-        self.model_save(best, track)
+        MetricsVisualization.show_all(self.classification_analysis)
+        self.model_save(best)
 
     def evaluation_metrics_calculation(self, dataset):
         # Calculate the loss
@@ -411,19 +408,22 @@ class ModelTraining:
         self.metrics['val_loss'].append(epoch_data['y_loss_validation'].mean())
         
         # Calculate the evaluation metrics
-        self.train_report = ClassifierReport(epoch_data['y_true_train'], epoch_data['y_pred_train'], 
-                                        epoch_data['y_score_train'], number_of_classes = dataset.number_of_classes,
-                                        classes_labels = dataset.classes_names)
+        self.train_report = MetricsClaculation(epoch_data['y_true_train'], epoch_data['y_pred_train'], 
+                                        epoch_data['y_score_train'], self.metrics['train_loss'][-1],
+                                        number_of_classes = dataset.number_of_classes, classes_labels = dataset.classes_names)
         self.metrics['train_acc'].append(self.train_report.overall_accuracy)
         self.metrics['train_kappa'].append(self.train_report.overall_cohen_kappa)
         self.metrics['train_recall'].append(self.train_report.overall_recall)
         self.metrics['train_fscore'].append(self.train_report.overall_f1_score)
         self.metrics['train_precision'].append(self.train_report.overall_precision)
         self.metrics['train_spec'].append(self.train_report.overall_specificity)
+
+        self.classification_analysis.add_epoch_train_metircs(self.train_report)
         
         
-        self.val_report = ClassifierReport(epoch_data['y_true_validation'], epoch_data['y_pred_validation'], 
-                                      epoch_data['y_score_validation'], number_of_classes = dataset.number_of_classes,
+        self.val_report = MetricsClaculation(epoch_data['y_true_validation'], epoch_data['y_pred_validation'], 
+                                      epoch_data['y_score_validation'], self.metrics['val_loss'][-1],
+                                        number_of_classes = dataset.number_of_classes,
                                       classes_labels = dataset.classes_names)
         self.metrics['val_acc'].append(self.val_report.overall_accuracy)
         self.metrics['val_kappa'].append(self.val_report.overall_cohen_kappa)
@@ -431,6 +431,8 @@ class ModelTraining:
         self.metrics['val_fscore'].append(self.val_report.overall_f1_score)
         self.metrics['val_precision'].append(self.val_report.overall_precision)
         self.metrics['val_spec'].append(self.val_report.overall_specificity)
+
+        self.classification_analysis.add_epoch_val_metircs(self.val_report)
     
     def evaluation_metrics_visualization(self):
         
@@ -442,22 +444,23 @@ class ModelTraining:
         print('Validation')
         self.val_report.show_all()
        
-        ClassificationAnalysis.line_plot(self.metrics['train_loss'],      self.metrics['val_loss'],      'Loss')
-        ClassificationAnalysis.line_plot(self.metrics['train_acc'],       self.metrics['val_acc'],       'Accuracy')
-        ClassificationAnalysis.line_plot(self.metrics['train_kappa'],     self.metrics['val_kappa'],     'Cohen Kappa')
-        ClassificationAnalysis.line_plot(self.metrics['train_fscore'],    self.metrics['val_fscore'],    'F1-Score')
-        ClassificationAnalysis.line_plot(self.metrics['train_precision'], self.metrics['val_precision'], 'Precision')
-        ClassificationAnalysis.line_plot(self.metrics['train_recall'],    self.metrics['val_recall'],    'Recall')
-        ClassificationAnalysis.line_plot(self.metrics['train_spec'],      self.metrics['val_spec'],      'Specificity')
+        MetricsVisualization.line_plot(self.metrics['train_loss'],      self.metrics['val_loss'],      'Loss')
+        MetricsVisualization.line_plot(self.metrics['train_acc'],       self.metrics['val_acc'],       'Accuracy')
+        MetricsVisualization.line_plot(self.metrics['train_kappa'],     self.metrics['val_kappa'],     'Cohen Kappa')
+        MetricsVisualization.line_plot(self.metrics['train_fscore'],    self.metrics['val_fscore'],    'F1-Score')
+        MetricsVisualization.line_plot(self.metrics['train_precision'], self.metrics['val_precision'], 'Precision')
+        MetricsVisualization.line_plot(self.metrics['train_recall'],    self.metrics['val_recall'],    'Recall')
+        MetricsVisualization.line_plot(self.metrics['train_spec'],      self.metrics['val_spec'],      'Specificity')
       
     
-    def model_save(self, best, track):
+    def model_save(self, best):
         def save_main_parameters(self):
             to_be_saved = dict()
             to_be_saved['epoch_data'] = self.epoch_data
             to_be_saved['steps_timing'] = self.steps_timing
             to_be_saved['train_report'] = self.train_report
             to_be_saved['val_report'] = self.val_report
+            to_be_saved['classification_analysis'] = self.classification_analysis
             to_be_saved['metrics'] = self.metrics
             to_be_saved['best_metrics'] = self.best_metrics
             to_be_saved['model_name'] = self.model_name
@@ -466,7 +469,6 @@ class ModelTraining:
             to_be_saved['current_epoch'] = self.current_epoch
             to_be_saved['num_epochs'] = self.num_epochs
             to_be_saved['input_type'] = self.input_type
-            to_be_saved['last_run_id'] = self.last_run_id
 
             params = self.optimizer.param_groups
             lr = [params[i]['lr'] for i in reversed(range(len(params)))]
@@ -498,21 +500,6 @@ class ModelTraining:
         file_name = self.model_name + '.pkl'
         should_be_saved = False
         if model_improved:
-            # Tracking Experiments 
-            if track:
-                if self.last_run_id:
-                    mlflow.delete_run(self.last_run_id)
-                    
-                with mlflow.start_run(run_name=self.model_name) as run:
-                    self.last_run_id = mlflow.active_run().info.run_id
-                    
-                    mlflow.log_param('epoch', self.current_epoch)
-                    mlflow.log_param('loss_function', self.loss_function)
-                    mlflow.log_param('scheduler', self.scheduler)
-                        
-                    for key in self.metrics:
-                        mlflow.log_metric(key, self.metrics[key][-1])
-            
             should_be_saved = True
             to_save = {
                            'last_model': self.model if self.save_last_model else None,
@@ -542,7 +529,7 @@ class ModelTraining:
             with open(file_name, 'wb') as f:
                 pk.dump(to_save, f)
         
-    def loop(self, dataset, best='val_acc', reset_epoch_cnt=True, track=True):
+    def loop(self, dataset, best='val_acc', reset_epoch_cnt=True):
         
         if reset_epoch_cnt:
             # If we want continue training
@@ -550,7 +537,7 @@ class ModelTraining:
         
         for epoch in range(self.num_epochs):
             with ElapsedTime('One epoch').cpu(with_gpu=False):
-                self.one_epoch(dataset, epoch, best, track)
+                self.one_epoch(dataset, epoch, best)
                     
     def features_extraction_details(self, n_crops, source_layers, phase, iteration):
         clear_output()
@@ -630,7 +617,7 @@ class ModelTraining:
             self.set_model_state(False)
             
             # Get the dataset
-            ds = dataset.get_data_loader(training_phase).dataset
+            ds = dataset.get_data_loader(training_phase)
             
             iteration = 0
             # Iterate over data
@@ -642,11 +629,11 @@ class ModelTraining:
                 
                 iteration+= 1
                 
-                self.inputs = self.inputs.to(self.device)
+                self.data_transfer()
                                 
                 with torch.no_grad():
                     
-                    # Step 1: feed model with inputs and get last layer outputs 
+                    # Step 1: feed model with inputs and get last layer outputs
                     last_layer_outputs = model_steps['last_layer'](self.inputs)
                     last_layer_outputs_mean = last_layer_outputs.mean(dim = 0)
                     
@@ -671,7 +658,7 @@ class ModelTraining:
                     
                     # Add labels
                     for k in datasets:
-                        datasets[k][phase]['labels'].append(np.array(self.labels))
+                        datasets[k][phase]['labels'].append(self.labels.cpu().data.numpy())
                 
                 
         # Stack features and labels
@@ -849,10 +836,10 @@ class ModelTraining:
         model_training.steps_timing = param_dict['steps_timing']
         model_training.train_report = param_dict['train_report']
         model_training.val_report = param_dict['val_report']
+        model_training.classification_analysis = param_dict['classification_analysis']
         model_training.metrics = param_dict['metrics']
         model_training.best_metrics = param_dict['best_metrics']
         model_training.current_epoch = param_dict['current_epoch']
-        model_training.last_run_id = param_dict['last_run_id']
         
         return model_training
       
@@ -883,13 +870,13 @@ class ModelTraining:
     @staticmethod
     def best_model_metrics_visualization(best_model_name):
         model_training = ModelTraining.restore_best_model_training(best_model_name)
-        model_training.evaluation_metrics_visualization()
+        MetricsVisualization.show_all(model_training.classification_analysis)
         
         
     @staticmethod
     def last_model_metrics_visualization(model_name):
         model_training = ModelTraining.restore_last_model_training(model_name)
-        model_training.evaluation_metrics_visualization()
+        MetricsVisualization.show_all(model_training.classification_analysis)
     
     @staticmethod
     def pth_model_save(model_tr_path, model_name):
@@ -924,6 +911,6 @@ class ModelTraining:
         with open(model_name, 'rb') as f:
             model_training = pk.load(f)
             
-        ClassificationAnalysis.misclassification(model_training, dataset, to_display)
+        MetricsVisualization.misclassification(model_training, dataset, to_display)
 
 

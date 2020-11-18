@@ -1,6 +1,5 @@
 README.md
 setup.py
-pytorch_vision_classifier/evaluation_metrics.py
 pytorch_vision_classifier/lr_finder.py
 pytorch_vision_classifier/pytorch_data_transformation.py
 pytorch_vision_classifier/pytorch_dataset_preparation.py
