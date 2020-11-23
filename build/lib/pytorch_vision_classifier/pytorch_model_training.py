@@ -418,7 +418,7 @@ class ModelTraining:
         self.metrics['train_precision'].append(self.train_report.overall_precision)
         self.metrics['train_spec'].append(self.train_report.overall_specificity)
 
-        self.classification_analysis.add_epoch_train_metircs(self.train_report)
+        self.classification_analysis.add_train_epoch_metircs(self.train_report)
         
         
         self.val_report = MetricsClaculation(epoch_data['y_true_validation'], epoch_data['y_pred_validation'], 
@@ -432,25 +432,7 @@ class ModelTraining:
         self.metrics['val_precision'].append(self.val_report.overall_precision)
         self.metrics['val_spec'].append(self.val_report.overall_specificity)
 
-        self.classification_analysis.add_epoch_val_metircs(self.val_report)
-    
-    def evaluation_metrics_visualization(self):
-        
-        print('Training')
-        self.train_report.show_all()
-        
-        print(50 * ' - ')
-        
-        print('Validation')
-        self.val_report.show_all()
-       
-        MetricsVisualization.line_plot(self.metrics['train_loss'],      self.metrics['val_loss'],      'Loss')
-        MetricsVisualization.line_plot(self.metrics['train_acc'],       self.metrics['val_acc'],       'Accuracy')
-        MetricsVisualization.line_plot(self.metrics['train_kappa'],     self.metrics['val_kappa'],     'Cohen Kappa')
-        MetricsVisualization.line_plot(self.metrics['train_fscore'],    self.metrics['val_fscore'],    'F1-Score')
-        MetricsVisualization.line_plot(self.metrics['train_precision'], self.metrics['val_precision'], 'Precision')
-        MetricsVisualization.line_plot(self.metrics['train_recall'],    self.metrics['val_recall'],    'Recall')
-        MetricsVisualization.line_plot(self.metrics['train_spec'],      self.metrics['val_spec'],      'Specificity')
+        self.classification_analysis.add_val_epoch_metircs(self.val_report)
       
     
     def model_save(self, best):
